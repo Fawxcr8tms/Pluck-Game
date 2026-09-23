@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "stickers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "sourcePlatform", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "stickers",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "tags", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

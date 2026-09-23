@@ -1,0 +1,35 @@
+{
+  "version": "2026-09-23",
+  "_comment": "Data, not code. When a platform changes its markup, update this file (or the SELECTORS_URL copy) instead of redeploying. Selectors are hints; the embedded-JSON and URL-pattern passes still run if every selector breaks.",
+  "platforms": {
+    "facebook": {
+      "commentContainers": ["[role='article'] [aria-label*='omment']", "div[data-testid='UFI2Comment/root_depth_0']", "div[data-sigil='comment']"],
+      "stickerImages": ["img[src*='/t39.1997-6/']", "img[src*='sticker']", "img[alt*='sticker' i]"],
+      "loginWall": ["form#login_form", "input[name='login_source']", "div#login_popup_cta_form"]
+    },
+    "instagram": {
+      "commentContainers": ["ul ul li", "div[role='dialog'] ul li"],
+      "stickerImages": ["img[src*='giphy']", "img[src*='/stickers/']"],
+      "loginWall": ["input[name='username'][type='text']", "form#loginForm"]
+    },
+    "tiktok": {
+      "commentContainers": ["[data-e2e='comment-level-1']", "div[class*='CommentItemContainer']"],
+      "stickerImages": ["[data-e2e='comment-level-1'] img", "img[src*='sticker']"],
+      "loginWall": ["[data-e2e='login-modal']"]
+    },
+    "reddit": {
+      "commentContainers": ["shreddit-comment", "div.comment"],
+      "stickerImages": ["shreddit-comment img", "img[src*='giphy']", "img[src*='emote']"],
+      "loginWall": []
+    },
+    "web": {
+      "commentContainers": ["#comments", ".comments", "[class*='comment' i]", "[id*='comment' i]"],
+      "stickerImages": ["img"],
+      "loginWall": []
+    }
+  },
+  "urlPatterns": {
+    "strong": ["/t39\\.1997-6/", "sticker", "giphy\\.com/media", "media\\d*\\.giphy\\.com", "tenor\\.com/.+\\.(gif|webp)", "\\.gif(\\?|$)", "/emote", "stickers?\\.", "p16-sign.*tiktokcdn.*comment"],
+    "reject": ["/t51\\.2885-19/", "profile_pic", "avatar", "s150x150", "/rsrc\\.php/", "emoji\\.php", "static\\.xx\\.fbcdn", "/emoji/", "yt3\\.ggpht\\.com", "spacer\\.gif", "pixel\\.gif", "1x1", "logo", "favicon", "sprite"]
+  }
+}

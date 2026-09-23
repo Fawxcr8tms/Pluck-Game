@@ -1,0 +1,14 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    // A user's vault is private to them.
+    match /users/{uid}/stickers/{stickerId} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      // The backend (Admin SDK) creates stickers. Clients may only edit their own organising fields.
+      allow update: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tags', 'favorite', 'updatedAt'])
+        && request.resource.data.tags is list && request.resource.data.tags.size() <= 20;
+      allow create: if false;
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "Pluck",
+    "slug": "pluck",
+    "scheme": "pluck",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "com.fawxcr8tms.pluck",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSPhotoLibraryAddUsageDescription": "Pluck saves stickers to your photo library when you ask it to.",
+        "NSPhotoLibraryUsageDescription": "Pluck lets you pick a screenshot to cut a sticker from."
+      }
+    },
+    "android": {
+      "package": "com.fawxcr8tms.pluck",
+      "permissions": []
+    },
+    "plugins": [
+      "expo-dev-client",
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsText": true,
+            "NSExtensionActivationSupportsImageWithMaxCount": 5
+          },
+          "androidIntentFilters": ["text/*", "image/*"],
+          "androidMultiIntentFilters": ["image/*"]
+        }
+      ],
+      [
+        "expo-media-library",
+        { "savePhotosPermission": "Pluck saves stickers to your photo library when you ask it to.", "isAccessMediaLocationEnabled": false }
+      ],
+      [
+        "expo-image-picker",
+        { "photosPermission": "Pluck lets you pick a screenshot to cut a sticker from." }
+      ]
+    ]
+  }
+}
