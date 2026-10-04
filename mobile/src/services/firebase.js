@@ -4,15 +4,19 @@ import { getReactNativePersistence, initializeAuth, onAuthStateChanged, signInAn
 import { getFirestore } from 'firebase/firestore';
 import { firebaseConfig } from '../config';
 
-export const app = getApps()[0] ?? initializeApp(firebaseConfig);
-export const auth = initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) });
-export const db = getFirestore(app);
+/** Cloud sync is optional: without Firebase config the vault runs entirely on the phone. */
+export const cloudEnabled = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
+
+const app = cloudEnabled ? getApps()[0] ?? initializeApp(firebaseConfig) : null;
+export const auth = app ? initializeAuth(app, { persistence: getReactNativePersistence(AsyncStorage) }) : null;
+export const db = app ? getFirestore(app) : null;
 
 /**
  * Start anonymous so the vault works on first launch with zero friction.
  * Later, link a real provider (linkWithCredential) so the vault survives a reinstall.
  */
 export function ensureSignedIn() {
+  if (!auth) return Promise.resolve(null);
   return new Promise((resolve, reject) => {
     const unsub = onAuthStateChanged(auth, (user) => {
       unsub();

@@ -12,7 +12,7 @@ export class ApiError extends Error {
 }
 
 async function call(path, body, method = 'POST') {
-  const token = await auth.currentUser?.getIdToken();
+  const token = await auth?.currentUser?.getIdToken();
   let res;
   try {
     res = await fetch(`${API_URL}${path}`, {

@@ -1,8 +1,8 @@
 import { collection, doc, onSnapshot, orderBy, query, serverTimestamp, updateDoc } from 'firebase/firestore';
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { deleteSticker, importSticker } from '../services/api';
-import { db, ensureSignedIn } from '../services/firebase';
-import { deleteLocalFile, ensureLocalFile, readIndex, writeIndex } from '../services/localStore';
+import { cloudEnabled, db, ensureSignedIn } from '../services/firebase';
+import { deleteLocalFiles, ensureLocalFile, readIndex, storeLocalImage, writeIndex } from '../services/localStore';
 
 const VaultContext = createContext(null);
 
@@ -16,39 +16,53 @@ const toPlain = (snap) => {
   };
 };
 
+const newId = () => `local-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
 /**
- * Local-first vault:
- *   1. paint from the AsyncStorage index immediately
- *   2. subscribe to users/{uid}/stickers and reconcile
- *   3. download image files in the background so export works offline
+ * Local-first vault.
+ *  - Stickers cut out on the phone (`local: true`) live only in the AsyncStorage index + files on disk.
+ *    This is the whole app when Firebase isn't configured.
+ *  - When cloud sync is on, stickers saved through the backend come from Firestore and are merged in,
+ *    with their images downloaded so export works offline.
  */
 export function VaultProvider({ children }) {
   const [uid, setUid] = useState(null);
-  const [stickers, setStickers] = useState([]);
+  const [stickers, setStickersState] = useState([]);
   const [ready, setReady] = useState(false);
   const [syncError, setSyncError] = useState(null);
+  const latest = useRef([]);
 
-  const downloadMissing = useCallback(async (list) => {
-    for (const s of list.filter((x) => !x.localUri)) {
-      try {
-        const localUri = await ensureLocalFile(s);
-        setStickers((cur) => {
-          const updated = cur.map((x) => (x.id === s.id ? { ...x, localUri } : x));
-          writeIndex(updated);
-          return updated;
-        });
-      } catch {
-        // Try again on the next snapshot.
-      }
-    }
+  // Single writer so the in-memory list and the on-disk index never drift.
+  const setStickers = useCallback((updater) => {
+    setStickersState((cur) => {
+      const next = typeof updater === 'function' ? updater(cur) : updater;
+      latest.current = next;
+      writeIndex(next);
+      return next;
+    });
   }, []);
+
+  const downloadMissing = useCallback(
+    async (list) => {
+      for (const s of list.filter((x) => !x.localUri && x.url)) {
+        try {
+          const localUri = await ensureLocalFile(s);
+          setStickers((cur) => cur.map((x) => (x.id === s.id ? { ...x, localUri } : x)));
+        } catch {
+          // Try again on the next snapshot.
+        }
+      }
+    },
+    [setStickers],
+  );
 
   useEffect(() => {
     readIndex().then((cached) => {
-      setStickers((cur) => (cur.length ? cur : cached));
+      latest.current = cached;
+      setStickersState(cached);
       setReady(true);
     });
-    ensureSignedIn().then((u) => setUid(u.uid), (e) => setSyncError(e.message));
+    if (cloudEnabled) ensureSignedIn().then((u) => setUid(u?.uid ?? null), (e) => setSyncError(e.message));
   }, []);
 
   useEffect(() => {
@@ -56,40 +70,74 @@ export function VaultProvider({ children }) {
     const q = query(collection(db, 'users', uid, 'stickers'), orderBy('createdAt', 'desc'));
     return onSnapshot(
       q,
-      async (snap) => {
-        const cached = new Map((await readIndex()).map((s) => [s.id, s]));
-        const next = snap.docs.map((d) => ({ ...toPlain(d), localUri: cached.get(d.id)?.localUri ?? null }));
+      (snap) => {
+        const prev = new Map(latest.current.map((s) => [s.id, s]));
+        const remote = snap.docs.map((d) => ({ ...toPlain(d), localUri: prev.get(d.id)?.localUri ?? null }));
+        const remoteIds = new Set(remote.map((s) => s.id));
+        for (const s of latest.current) if (!s.local && !remoteIds.has(s.id)) deleteLocalFiles(s.id);
+        const next = [...latest.current.filter((s) => s.local), ...remote].sort((a, b) => b.createdAt - a.createdAt);
         setStickers(next);
         setSyncError(null);
-        writeIndex(next);
-        for (const gone of cached.keys()) if (!snap.docs.some((d) => d.id === gone)) deleteLocalFile(gone);
         downloadMissing(next);
       },
       (err) => setSyncError(err.message), // stay on the cached index; don't blank the grid
     );
-  }, [uid, downloadMissing]);
+  }, [uid, downloadMissing, setStickers]);
 
+  /** Save a cut-out made on the phone. No network involved. */
+  const addLocal = useCallback(
+    async ({ uri, sourcePlatform = 'manual', sourceUrl = null, tags = [] }) => {
+      const id = newId();
+      const localUri = await storeLocalImage(id, uri);
+      const now = Date.now();
+      const sticker = { id, local: true, localUri, sourcePlatform, sourceUrl, tags, favorite: false, animated: false, whatsappCompatible: true, createdAt: now, updatedAt: now };
+      setStickers((cur) => [sticker, ...cur]);
+      return sticker;
+    },
+    [setStickers],
+  );
+
+  /** Save a candidate found by the backend scraper (needs cloud sync). */
   const save = useCallback(async (payload) => {
-    const { sticker, duplicate } = await importSticker(payload);
-    return { sticker, duplicate }; // the snapshot listener adds it to the grid
+    if (!cloudEnabled) throw new Error('Saving from links needs cloud sync. Cut stickers out of screenshots instead.');
+    return importSticker(payload); // the snapshot listener adds it to the grid
   }, []);
 
+  const patchLocal = useCallback(
+    (id, patch) => setStickers((cur) => cur.map((s) => (s.id === id ? { ...s, ...patch, updatedAt: Date.now() } : s))),
+    [setStickers],
+  );
+
   const updateTags = useCallback(
-    (id, tags) => updateDoc(doc(db, 'users', uid, 'stickers', id), { tags, updatedAt: serverTimestamp() }),
-    [uid],
+    (id, tags) => {
+      const s = latest.current.find((x) => x.id === id);
+      if (!s || s.local) return patchLocal(id, { tags });
+      return updateDoc(doc(db, 'users', uid, 'stickers', id), { tags, updatedAt: serverTimestamp() });
+    },
+    [uid, patchLocal],
   );
 
   const toggleFavorite = useCallback(
-    (s) => updateDoc(doc(db, 'users', uid, 'stickers', s.id), { favorite: !s.favorite, updatedAt: serverTimestamp() }),
-    [uid],
+    (s) => {
+      if (s.local) return patchLocal(s.id, { favorite: !s.favorite });
+      return updateDoc(doc(db, 'users', uid, 'stickers', s.id), { favorite: !s.favorite, updatedAt: serverTimestamp() });
+    },
+    [uid, patchLocal],
   );
 
-  // Goes through the backend so the Storage files are deleted too.
-  const remove = useCallback((id) => deleteSticker(id), []);
+  const remove = useCallback(
+    async (id) => {
+      const s = latest.current.find((x) => x.id === id);
+      if (s && !s.local) await deleteSticker(id); // backend deletes the Storage files too
+      deleteLocalFiles(id);
+      setStickers((cur) => cur.filter((x) => x.id !== id));
+    },
+    [setStickers],
+  );
 
   const value = useMemo(
-    () => ({ ready, uid, stickers, syncError, save, updateTags, toggleFavorite, remove, ensureLocalFile }),
-    [ready, uid, stickers, syncError, save, updateTags, toggleFavorite, remove],
+    () => ({ ready, uid, cloudEnabled, stickers, syncError, addLocal, save, updateTags, toggleFavorite, remove, ensureLocalFile }),
+    [ready, uid, stickers, syncError, addLocal, save, updateTags, toggleFavorite, remove],
   );
   return <VaultContext.Provider value={value}>{children}</VaultContext.Provider>;
 }

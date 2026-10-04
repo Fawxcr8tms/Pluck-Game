@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { findUrl } from './src/lib/links';
+import CutoutScreen from './src/screens/CutoutScreen';
 import ImportScreen from './src/screens/ImportScreen';
 import StickerDetailScreen from './src/screens/StickerDetailScreen';
 import VaultScreen from './src/screens/VaultScreen';
@@ -14,7 +15,7 @@ import { navigationRef } from './src/navigation';
 
 const Stack = createNativeStackNavigator();
 
-/** Share-sheet entry point: a link goes to Import and gets plucked, images get saved as manual captures. */
+/** Share-sheet entry point: a screenshot goes to the cut-out screen, a link goes to Import. */
 function ShareIntentRouter({ navReady }) {
   const { hasShareIntent, shareIntent, resetShareIntent } = useShareIntentContext();
 
@@ -22,7 +23,8 @@ function ShareIntentRouter({ navReady }) {
     if (!hasShareIntent || !navReady) return; // cold start: wait for the navigator, then run
     const url = shareIntent.webUrl ?? findUrl(shareIntent.text);
     const images = (shareIntent.files ?? []).filter((f) => f.mimeType?.startsWith('image/'));
-    if (images.length) navigationRef.navigate('Import', { sharedFiles: images });
+    const path = images[0]?.path;
+    if (path) navigationRef.navigate('Cutout', { uri: path.startsWith('file://') ? path : `file://${path}`, sourceUrl: url });
     else if (url) navigationRef.navigate('Import', { url });
     resetShareIntent();
   }, [hasShareIntent, shareIntent, resetShareIntent, navReady]);
@@ -42,6 +44,7 @@ export default function App() {
             <Stack.Navigator>
               <Stack.Screen name="Vault" component={VaultScreen} options={{ headerShown: false }} />
               <Stack.Screen name="Import" component={ImportScreen} options={{ presentation: 'modal', title: 'Pluck stickers' }} />
+              <Stack.Screen name="Cutout" component={CutoutScreen} options={{ presentation: 'fullScreenModal', title: 'Cut out' }} />
               <Stack.Screen name="StickerDetail" component={StickerDetailScreen} options={{ title: '' }} />
             </Stack.Navigator>
           </NavigationContainer>

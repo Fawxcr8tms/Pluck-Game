@@ -7,7 +7,9 @@
     "start": "expo start --dev-client",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "doctor": "expo install --check"
+    "doctor": "expo install --check",
+    "build:ios": "eas build --platform ios --profile preview",
+    "submit:ios": "eas submit --platform ios --latest"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -20,6 +22,7 @@
     "expo-file-system": "~57.0.7",
     "expo-haptics": "~57.0.3",
     "expo-image": "~57.0.5",
+    "expo-image-manipulator": "~57.0.19",
     "expo-image-picker": "~57.0.19",
     "expo-linking": "~57.0.10",
     "expo-media-library": "~57.0.5",

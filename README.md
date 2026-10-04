@@ -1,10 +1,12 @@
 # Pluck 🦅
 
-**Rescue stickers from the comment section.** Share a post from Instagram, TikTok, Facebook or YouTube to Pluck. It finds the stickers in the comments and saves the ones you pick to a private vault that syncs across your devices. From there you can send them anywhere.
+**Rescue stickers from the comment section.** Screenshot a comment, share it to Pluck, tap the sticker: Pluck cuts it out and adds it to your own WhatsApp sticker pack. You can also paste a post link and let the backend hunt for stickers.
+
+**iPhone setup:** [docs/IPHONE_SETUP.md](docs/IPHONE_SETUP.md)
 
 ```
 backend/   Node 20+ · Express 5 · cheerio · sharp · firebase-admin   (extractor + import API)
-mobile/    Expo SDK 57 · React Native · Firebase JS SDK               (vault, import, export)
+mobile/    Expo SDK 57 · React Native · Swift module (Vision cut-out, WhatsApp packs) · optional Firebase sync
 firebase/  Firestore + Storage security rules and indexes
 docs/      ARCHITECTURE · EDGE_CASES · EXPORT
 ```
@@ -29,9 +31,9 @@ firebase deploy --only firestore,storage   # enable Anonymous Auth in the consol
 
 # 3. App (needs a dev build: share extensions don't run in Expo Go)
 cd ../mobile
-cp .env.example .env              # API URL + Firebase web config
+# .env is optional: without Firebase the vault lives on the phone only
 npm install && npx expo install --fix
-npx expo run:ios                  # or run:android
+npx expo run:ios --device         # or a cloud build: see docs/IPHONE_SETUP.md
 ```
 
 ## API
@@ -48,5 +50,6 @@ Errors always look like `{ error: { code, message, retryAfterSec?, fallback? } }
 
 - **Instagram, Facebook and TikTok hide most comments behind logins or client-side APIs.** Pluck doesn't bypass that. It falls back to *manual capture*: screenshot the comment, then crop the sticker. See [docs/EDGE_CASES.md](docs/EDGE_CASES.md).
 - **YouTube comments can't contain image stickers.** Pluck only finds images that people linked.
-- **No OS lets third-party apps add to Gboard's or iOS's built-in sticker trays.** Share, copy/paste and Photos work now. WhatsApp and iMessage packs need native modules that aren't written yet. See [docs/EXPORT.md](docs/EXPORT.md).
+- **No OS lets third-party apps add to Gboard's or iOS's built-in sticker trays.** WhatsApp packs are written for iPhone (untested on a device yet); iMessage and Android packs aren't. See [docs/EXPORT.md](docs/EXPORT.md).
+- **Apps can't add a button inside Instagram or TikTok**, so the flow starts from a screenshot.
 - Respect each platform's Terms of Service and the sticker creators' rights. The vault is private by design.

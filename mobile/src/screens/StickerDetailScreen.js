@@ -8,7 +8,7 @@ import * as WebBrowser from 'expo-web-browser';
 import { useState } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { PLATFORM_LABEL, useTheme } from '../lib/theme';
-import { addPackToWhatsApp, WHATSAPP_LIMITS } from '../native/stickerExport';
+import { packFor, sendPackToWhatsApp, whatsappErrorMessage } from '../native/stickerExport';
 import { useVault } from '../state/VaultContext';
 
 export default function StickerDetailScreen({ route, navigation }) {
@@ -55,18 +55,11 @@ export default function StickerDetailScreen({ route, navigation }) {
   });
 
   const whatsapp = async () => {
-    const pack = stickers.filter((s) => s.favorite || s.id === sticker.id);
+    const pack = packFor(stickers, sticker.id);
     try {
-      const uris = await Promise.all(pack.map(ensureLocalFile));
-      await addPackToWhatsApp(pack.map((s, i) => ({ ...s, localUri: uris[i] })));
+      await sendPackToWhatsApp(pack, ensureLocalFile);
     } catch (e) {
-      if (e.message === 'too_few') {
-        Alert.alert('Need a few more', `WhatsApp packs need at least ${WHATSAPP_LIMITS.min} stickers. Favourite ${WHATSAPP_LIMITS.min - pack.length} more and try again.`);
-      } else if (e.message === 'native_missing') {
-        Alert.alert('Not in this build yet', 'WhatsApp packs need a native module (see docs/EXPORT.md). Use Share for now.');
-      } else {
-        Alert.alert("WhatsApp didn't take it", e.message);
-      }
+      Alert.alert('WhatsApp', whatsappErrorMessage(e, pack));
     }
   };
 
@@ -140,7 +133,7 @@ export default function StickerDetailScreen({ route, navigation }) {
         <Action t={t} icon="📤" label="Share" onPress={share} busy={busy === 'share'} primary />
         <Action t={t} icon="📋" label="Copy" onPress={copy} busy={busy === 'copy'} />
         <Action t={t} icon="🖼️" label="Save to Photos" onPress={saveToPhotos} busy={busy === 'photos'} />
-        <Action t={t} icon="💬" label="WhatsApp pack" onPress={whatsapp} disabled={!sticker.whatsappCompatible} />
+        <Action t={t} icon="💬" label="Send to WhatsApp" onPress={whatsapp} disabled={!sticker.whatsappCompatible} />
       </View>
       {!sticker.whatsappCompatible && (
         <Text style={{ color: t.muted, fontSize: 12 }}>This one is too big for WhatsApp's 500 KB animated-sticker limit.</Text>

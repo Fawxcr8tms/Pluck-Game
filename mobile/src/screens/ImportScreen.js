@@ -1,11 +1,10 @@
-import { File } from 'expo-file-system';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import * as WebBrowser from 'expo-web-browser';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, TextInput, View, useWindowDimensions } from 'react-native';
 import StickerCell from '../components/StickerCell';
-import { detectPlatform, findUrl } from '../lib/links';
+import { findUrl } from '../lib/links';
 import { useTheme } from '../lib/theme';
 import { extractFromLink } from '../services/api';
 import { useVault } from '../state/VaultContext';
@@ -48,7 +47,6 @@ export default function ImportScreen({ route, navigation }) {
   const [tags, setTags] = useState('');
 
   const parsedTags = tags.split(/[,\s]+/).filter(Boolean);
-  const platform = detectPlatform(url);
 
   const pluck = useCallback(async (target) => {
     const link = findUrl(target);
@@ -68,22 +66,6 @@ export default function ImportScreen({ route, navigation }) {
     if (route.params?.url) pluck(route.params.url);
   }, [route.params?.url, pluck]);
 
-  // Arrived with shared images (someone shared a screenshot to Pluck).
-  useEffect(() => {
-    const files = route.params?.sharedFiles;
-    if (!files?.length) return;
-    (async () => {
-      setState({ phase: 'saving', done: 0, total: files.length });
-      const failures = await saveAll(
-        files,
-        async (f) => save({ imageBase64: await new File(f.path).base64(), platform: 'manual', tags: parsedTags }),
-        (done) => setState({ phase: 'saving', done, total: files.length }),
-      );
-      finish(files.length - failures.length, failures);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [route.params?.sharedFiles]);
-
   const finish = (saved, failures) => {
     Haptics.notificationAsync(failures.length ? Haptics.NotificationFeedbackType.Warning : Haptics.NotificationFeedbackType.Success);
     if (failures.length && !saved) return setState({ phase: 'error', error: failures[0] });
@@ -101,17 +83,11 @@ export default function ImportScreen({ route, navigation }) {
     finish(picks.length - failures.length, failures);
   };
 
-  // Manual capture: the user screenshots the comment, then crops the sticker out in the system picker.
+  // Manual capture: pick the screenshot, then tap the sticker on the cut-out screen.
   const captureManually = async () => {
-    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, base64: true, quality: 1 });
-    if (res.canceled || !res.assets?.[0]?.base64) return;
-    setState({ phase: 'saving', done: 0, total: 1 });
-    try {
-      await save({ imageBase64: res.assets[0].base64, sourceUrl: findUrl(url), platform, tags: parsedTags });
-      finish(1, []);
-    } catch (error) {
-      setState({ phase: 'error', error });
-    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 1 });
+    if (res.canceled || !res.assets?.[0]?.uri) return;
+    navigation.replace('Cutout', { uri: res.assets[0].uri, sourceUrl: findUrl(url) });
   };
 
   const toggle = (u) =>
@@ -236,7 +212,7 @@ function ManualCaptureSteps({ url, onPick, t, compact }) {
           </Pressable>
         )}
         <Pressable onPress={onPick} style={[styles.ghost, { borderColor: t.accent }]}>
-          <Text style={{ color: t.accent, fontWeight: '700' }}>✂️ Crop from a screenshot</Text>
+          <Text style={{ color: t.accent, fontWeight: '700' }}>✂️ Cut from a screenshot</Text>
         </Pressable>
       </View>
     </View>
