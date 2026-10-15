@@ -1,4 +1,5 @@
 import ExpoModulesCore
+import SDWebImage
 import SDWebImageWebPCoder
 import UIKit
 import Vision

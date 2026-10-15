@@ -12,7 +12,11 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
   # Already in every Expo app through expo-image; iOS can read WebP but can't write it.
+  s.dependency 'SDWebImage'
   s.dependency 'SDWebImageWebPCoder'
+
+  # Lets Swift import the Objective-C SDWebImage pods (same as expo-image does)
+  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
 
   s.source_files = '**/*.swift'
 end

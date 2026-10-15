@@ -80,7 +80,10 @@ jobs:
           exit $fail
       - name: Show errors
         if: failure()
-        run: grep -E -B2 -A6 "error:" /tmp/xcodebuild.log | head -300 || tail -200 /tmp/xcodebuild.log
+        run: |
+          # Each compiler error becomes an annotation, readable without downloading the log.
+          grep -E "error:" /tmp/xcodebuild.log | sed -E 's#^/Users/runner/work/[^ ]*/mobile/##' | sort -u | cut -c1-600 | head -40 | sed 's/^/::error title=xcode::/' || true
+          grep -E -B2 -A6 "error:" /tmp/xcodebuild.log | head -300 || tail -200 /tmp/xcodebuild.log
       - uses: actions/upload-artifact@v4
         if: failure()
         with: { name: xcodebuild-log, path: /tmp/xcodebuild.log }
