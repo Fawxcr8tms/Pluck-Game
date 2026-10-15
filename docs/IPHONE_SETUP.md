@@ -52,7 +52,7 @@ Also works: long-press a sticker in Photos → **Copy** → in Pluck tap **📋 
 
 ## Known gaps (honest list)
 
-- **Never compiled or run yet.** The Swift code is written against Expo SDK 57's module API, but there was no Mac available to compile it. Expect a fix-up round on the first build.
+- **Compiles, but hasn't run on a real iPhone yet.** GitHub's Mac build (`.github/workflows/ios-compile-check.yml`) compiles everything, including the Swift cut-out/WhatsApp module and the Back Tap Shortcuts action, and checks both are in the app. What it can't check is behaviour on a device: how good the cut-outs are, and whether WhatsApp accepts the pack.
 - **WhatsApp always asks you to confirm.** No app can add stickers silently.
 - **WhatsApp on iPad** may not accept third-party packs; this targets WhatsApp on iPhone.
 - **Animated stickers** come out static (a screenshot is a still image).
