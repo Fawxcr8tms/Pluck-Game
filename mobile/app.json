@@ -55,7 +55,8 @@
         {
           "photosPermission": "Pluck lets you pick a screenshot to cut a sticker from."
         }
-      ]
+      ],
+      "./plugins/withPluckAppIntents"
     ]
   }
 }

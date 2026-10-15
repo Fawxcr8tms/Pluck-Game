@@ -56,3 +56,16 @@ Also works: long-press a sticker in Photos → **Copy** → in Pluck tap **📋 
 - **WhatsApp always asks you to confirm.** No app can add stickers silently.
 - **WhatsApp on iPad** may not accept third-party packs; this targets WhatsApp on iPhone.
 - **Animated stickers** come out static (a screenshot is a still image).
+
+## Back Tap setup (one time, about 1 minute)
+
+1. Open **Shortcuts** → **+** → add the action **Take Screenshot**.
+2. Add the action **Cut Sticker with Pluck** (search "Pluck"). It picks up the screenshot automatically.
+3. Name it "Pluck it" → Done.
+4. **Settings → Accessibility → Touch → Back Tap → Double Tap → Pluck it.**
+
+Now, anywhere (TikTok, Instagram, Facebook comments): **double-tap the back of the phone → tap the sticker.** It's cut out and saved; once your pack has 3+, it goes straight to WhatsApp (which asks you to confirm).
+
+## Free compile check
+
+`.github/workflows/ios-compile-check.yml` builds the app for the iPhone Simulator on GitHub's Macs with signing off, so it needs no Apple account. It proves the code compiles; it can't prove the cut-out or WhatsApp hand-off *behave* right on a real phone.

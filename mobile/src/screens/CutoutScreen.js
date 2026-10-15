@@ -11,18 +11,20 @@ import { useVault } from '../state/VaultContext';
 /**
  * Screenshot in, sticker out:
  *   1. user taps the sticker in their screenshot
- *   2. iOS Vision cuts out whatever is under the finger (iOS 17+), or we fall back to a square crop
- *   3. save to the vault, and optionally push the pack to WhatsApp right away
+ *   2. iOS Vision cuts out whatever is under the finger (iOS 17+)
+ *   3. a clean cut-out is saved at once (Undo if it's wrong); once the pack has 3+, it goes to WhatsApp
+ * When the cut-out fails we fall back to a square crop and ask before saving.
  */
 export default function CutoutScreen({ route, navigation }) {
   const t = useTheme();
-  const { addLocal, stickers, ensureLocalFile } = useVault();
+  const { addLocal, remove, stickers, ensureLocalFile } = useVault();
   const { uri, sourceUrl = null } = route.params;
   const [natural, setNatural] = useState(null); // image pixel size
   const [box, setBox] = useState(null); // on-screen layout size
-  const [phase, setPhase] = useState('pick'); // pick | working | preview | saving
+  const [phase, setPhase] = useState('pick'); // pick | working | preview | saving | saved
   const [result, setResult] = useState(null);
   const [hint, setHint] = useState(null);
+  const [saved, setSaved] = useState(null); // { sticker, sentTo }
 
   // expo-image draws with contentFit="contain", so map the tap through the letterboxing.
   const toImagePoint = ({ locationX, locationY }) => {
@@ -48,14 +50,49 @@ export default function CutoutScreen({ route, navigation }) {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setPhase('working');
     setHint(null);
+    let lifted;
     try {
-      setResult({ uri: await liftSubject(uri, p.x, p.y), method: 'lift', point: p });
+      lifted = { uri: await liftSubject(uri, p.x, p.y), method: 'lift', point: p };
     } catch (err) {
       // No native module (Expo Go), iOS 16, or Vision found nothing: square crop around the tap instead.
       setResult({ uri: await squareCrop(p), method: 'square', point: p });
       setHint(err.message === 'native_missing' ? 'Square crop (tap-to-cut-out needs the installed app).' : err.message);
+      setPhase('preview');
+      return;
     }
-    setPhase('preview');
+    setResult(lifted);
+    await autoSave(lifted);
+  };
+
+  // One tap: save the clean cut-out straight away, and send the pack if it's big enough.
+  const autoSave = async (r) => {
+    setPhase('saving');
+    try {
+      const sticker = await addLocal({ uri: r.uri, sourceUrl, sourcePlatform: sourceUrl ? detectPlatform(sourceUrl) : 'manual' });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      const pack = packFor([sticker, ...stickers], sticker.id);
+      let sentTo = null;
+      if (pack && pack.stickers.length >= 3) {
+        try {
+          await sendPackToWhatsApp(pack, ensureLocalFile);
+          sentTo = pack.name;
+        } catch (err) {
+          setHint(whatsappErrorMessage(err, pack));
+        }
+      }
+      setSaved({ sticker, sentTo, packCount: pack?.stickers.length ?? 1 });
+      setPhase('saved');
+    } catch (err) {
+      setPhase('preview');
+      Alert.alert("Couldn't save", err.message);
+    }
+  };
+
+  const undo = async () => {
+    if (saved) await remove(saved.sticker.id);
+    setSaved(null);
+    setHint(null);
+    setPhase('pick');
   };
 
   const save = async ({ thenWhatsApp }) => {
@@ -87,7 +124,7 @@ export default function CutoutScreen({ route, navigation }) {
         <>
           <Text style={[styles.title, { color: t.text }]}>Tap the sticker</Text>
           <Text style={[styles.sub, { color: t.muted }]}>
-            {nativeAvailable ? 'Pluck cuts it out for you.' : 'Pluck crops a square around your tap.'}
+            {nativeAvailable ? 'One tap: Pluck cuts it out and saves it.' : 'Pluck crops a square around your tap.'}
           </Text>
           <Pressable style={styles.stage} onPress={onTap} onLayout={(e) => setBox(e.nativeEvent.layout)} disabled={phase === 'working'}>
             <Image
@@ -103,6 +140,37 @@ export default function CutoutScreen({ route, navigation }) {
               </View>
             )}
           </Pressable>
+        </>
+      ) : phase === 'saved' ? (
+        <>
+          <Text style={[styles.title, { color: t.text }]}>{saved.sentTo ? `Sent to WhatsApp 🎉` : 'Saved ✂️'}</Text>
+          <Text style={[styles.sub, { color: t.muted }]}>
+            {hint ??
+              (saved.sentTo
+                ? `${saved.sentTo} now has ${saved.packCount} stickers. Confirm in WhatsApp.`
+                : `${3 - saved.packCount} more and your WhatsApp pack unlocks.`)}
+          </Text>
+          <View style={[styles.preview, { borderColor: t.border }]}>
+            <Checkerboard />
+            <Image source={{ uri: saved.sticker.localUri }} style={styles.previewImg} contentFit="contain" />
+          </View>
+          <Pressable onPress={() => navigation.popToTop()} style={[styles.primary, { backgroundColor: t.accent }]}>
+            <Text style={[styles.primaryText, { color: t.accentText }]}>Done</Text>
+          </Pressable>
+          <View style={styles.row}>
+            <Pressable
+              onPress={async () => {
+                await undo();
+                navigation.popToTop();
+              }}
+              style={[styles.ghost, { borderColor: t.accent }]}
+            >
+              <Text style={{ color: t.accent, fontWeight: '700' }}>Undo</Text>
+            </Pressable>
+            <Pressable onPress={undo} style={[styles.ghost, { borderColor: t.accent }]}>
+              <Text style={{ color: t.accent, fontWeight: '700' }}>Wrong one? Tap again</Text>
+            </Pressable>
+          </View>
         </>
       ) : (
         <>

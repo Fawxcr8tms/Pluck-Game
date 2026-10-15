@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { useColorScheme } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { useBackTapCapture } from './src/hooks/useBackTapCapture';
 import { findUrl } from './src/lib/links';
 import CutoutScreen from './src/screens/CutoutScreen';
 import ImportScreen from './src/screens/ImportScreen';
@@ -24,7 +25,7 @@ function ShareIntentRouter({ navReady }) {
     const url = shareIntent.webUrl ?? findUrl(shareIntent.text);
     const images = (shareIntent.files ?? []).filter((f) => f.mimeType?.startsWith('image/'));
     const path = images[0]?.path;
-    if (path) navigationRef.navigate('Cutout', { uri: path.startsWith('file://') ? path : `file://${path}`, sourceUrl: url });
+    if (path) navigationRef.navigate('Cutout', { uri: path.startsWith('file://') ? path : `file://${path}`, sourceUrl: url, instant: true });
     else if (url) navigationRef.navigate('Import', { url });
     resetShareIntent();
   }, [hasShareIntent, shareIntent, resetShareIntent, navReady]);
@@ -35,6 +36,7 @@ function ShareIntentRouter({ navReady }) {
 export default function App() {
   const scheme = useColorScheme();
   const [navReady, setNavReady] = useState(false);
+  useBackTapCapture(navigationRef, navReady);
   return (
     <ShareIntentProvider options={{ resetOnBackground: true }}>
       <SafeAreaProvider>

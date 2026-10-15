@@ -1,0 +1,65 @@
+name: iOS compile check
+
+# Proves the iPhone app (including the Swift cut-out / WhatsApp / Back Tap code) builds,
+# without an Apple Developer account: it builds for the Simulator with signing turned off.
+on:
+  push:
+    branches: [claude/social-sticker-saver-app-ogqz9h]
+    paths: ['mobile/**', '.github/workflows/ios-compile-check.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: ios-compile-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: JS bundle + prebuild
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install --no-audit --no-fund
+      - name: Dependency versions match the Expo SDK
+        run: npx expo install --check
+      - name: Bundle JS for iOS
+        run: npx expo export --platform ios --output-dir /tmp/export
+      - name: Generate native project (runs config plugins)
+        run: npx expo prebuild --platform ios --no-install --clean
+
+  ios:
+    name: Xcode build (Simulator, unsigned)
+    needs: js
+    runs-on: macos-latest
+    timeout-minutes: 60
+    defaults: { run: { working-directory: mobile } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Use the newest Xcode on the runner
+        run: |
+          ls -d /Applications/Xcode*.app
+          XCODE=$(ls -d /Applications/Xcode_*.app | grep -v -i beta | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+      - run: npm install --no-audit --no-fund
+      - name: Prebuild + CocoaPods
+        run: npx expo prebuild --platform ios --clean
+      - name: Build
+        run: |
+          set -o pipefail
+          xcodebuild \
+            -workspace ios/Pluck.xcworkspace -scheme Pluck -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO \
+            build 2>&1 | tee /tmp/xcodebuild.log | grep -E "error:|\*\* BUILD" || true
+          grep -q "\*\* BUILD SUCCEEDED \*\*" /tmp/xcodebuild.log
+      - name: Show errors
+        if: failure()
+        run: grep -E -B2 -A6 "error:" /tmp/xcodebuild.log | head -300 || tail -200 /tmp/xcodebuild.log
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with: { name: xcodebuild-log, path: /tmp/xcodebuild.log }
