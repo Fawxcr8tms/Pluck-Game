@@ -98,7 +98,7 @@ enum StickerCutter {
     }
 
     let instances = instanceNear(tapInCrop, in: result)
-    let masked = try result.generateMaskedImage(ofInstances: instances, from: handler, croppingToInstancesExtent: true)
+    let masked = try result.generateMaskedImage(ofInstances: instances, from: handler, croppedToInstancesExtent: true)
     let ciImage = CIImage(cvPixelBuffer: masked)
     guard let cg = CIContext().createCGImage(ciImage, from: ciImage.extent) else { throw PluckError("Cut-out failed.") }
     guard let png = UIImage(cgImage: cg).pngData() else { throw PluckError("Couldn't save the cut-out.") }
