@@ -60,17 +60,24 @@ jobs:
       - name: Verify Pluck's own native code is in the build
         run: |
           set -e
+          # Diagnostics: every log line mentioning Pluck's code (shortened), as annotations readable from the API.
+          grep -n -i -E "pluck(native|appintents)" /tmp/xcodebuild.log | cut -c1-300 | head -25 | sed 's/^/::notice title=log::/' || echo "::notice title=log::no lines mention PluckNative"
+          grep -c "SwiftCompile" /tmp/xcodebuild.log | sed 's/^/::notice title=swiftcompile-lines::/' || true
+          grep -m3 "SwiftCompile" /tmp/xcodebuild.log | cut -c1-300 | sed 's/^/::notice title=sample::/' || true
+          grep -i "PluckNative" ios/Podfile.lock | head -5 | sed 's/^/::notice title=podfile.lock::/' || echo "::notice title=podfile.lock::PluckNative NOT in Podfile.lock"
+          fail=0
           for f in PluckNativeModule.swift PluckAppIntents.swift; do
-            if grep -q "$f" /tmp/xcodebuild.log; then echo "::notice title=compiled::$f was compiled"; else echo "::error title=missing::$f was NOT compiled"; exit 1; fi
+            if grep -q "$f" /tmp/xcodebuild.log; then echo "::notice title=compiled::$f was compiled"; else echo "::error title=missing::$f was NOT compiled"; fail=1; fi
           done
           APP=$(find ~/Library/Developer/Xcode/DerivedData -path '*Debug-iphonesimulator/Pluck.app' -maxdepth 6 | head -1)
           echo "App: $APP"
           if [ -d "$APP/Metadata.appintents" ] && grep -rq "CutStickerIntent" "$APP/Metadata.appintents"; then
             echo "::notice title=shortcuts::'Cut Sticker with Pluck' is registered for the Shortcuts app"
           else
-            echo "::error title=shortcuts::App Intent metadata missing: Shortcuts would not see the action"; exit 1
+            echo "::error title=shortcuts::App Intent metadata missing: Shortcuts would not see the action"; fail=1
           fi
           grep -E "warning: .*(PluckNative|PluckAppIntents)" /tmp/xcodebuild.log | sed 's/^/::warning title=swift::/' | head -20 || true
+          exit $fail
       - name: Show errors
         if: failure()
         run: grep -E -B2 -A6 "error:" /tmp/xcodebuild.log | head -300 || tail -200 /tmp/xcodebuild.log
